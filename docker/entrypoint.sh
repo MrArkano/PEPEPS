@@ -17,9 +17,9 @@ sed -ri -e "s!<VirtualHost \*:.*>!<VirtualHost \*:${PORT}>!g" /etc/apache2/sites
 # Suprimir advertencia de ServerName en Apache
 echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
-# Optimización de Laravel en producción
+# Optimización de Laravel en producción (sin config:cache para reflejar variables y debug)
 if [ -n "$APP_KEY" ]; then
-    php artisan config:cache || true
+    php artisan config:clear || true
     php artisan route:cache || true
     php artisan view:cache || true
 fi
