@@ -1,0 +1,40 @@
+# =============================================================================
+# PEPEPS - Configuración de Despliegue Automático en Render (render.yaml)
+# =============================================================================
+services:
+  - type: web
+    name: pepeps-santander
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /catalogo
+    autoDeploy: true
+    envVars:
+      - key: APP_NAME
+        value: "PEPEPS Santander"
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        generateValue: true
+      - key: APP_URL
+        value: https://pepeps-santander.onrender.com
+      - key: MONGODB_DATABASE
+        value: pepeps
+      - key: SESSION_DRIVER
+        value: file
+      - key: CACHE_STORE
+        value: file
+      - key: SESSION_SECURE_COOKIE
+        value: "true"
+      - key: SESSION_HTTP_ONLY
+        value: "true"
+      - key: SESSION_SAME_SITE
+        value: lax
+      - key: AUTH_MODEL
+        value: App\Models\Usuario
+      # Esta variable la ingresas con la URI que te entrega MongoDB Atlas:
+      - key: MONGODB_URI
+        sync: false
