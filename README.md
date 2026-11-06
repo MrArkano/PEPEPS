@@ -1,18 +1,17 @@
 # 🌾 PEPEPS - Plataforma Digital de Mercados Campesinos de Santander
 
-Plataforma web desarrollada con **Laravel 13**, **PHP 8.5** y **MongoDB**, orientada a conectar a los productores rurales de Santander (Bucaramanga, Floridablanca, Girón, San Gil, Piedecuesta, Lebrija, etc.) con consumidores urbanos, reduciendo la intermediación comercial, garantizando precios justos y trazabilidad de origen campesino verificado.
+Plataforma web desarrollada con **Laravel 13**, **PHP 8.5/8.2** y **MongoDB**, orientada a conectar a los productores rurales de Santander (Bucaramanga, Floridablanca, Girón, San Gil, Piedecuesta, Lebrija, etc.) con consumidores urbanos, reduciendo la intermediación comercial, garantizando precios justos y trazabilidad de origen campesino verificado.
 
 ---
 
 ## 🛠️ Tecnologías Utilizadas
 
 - **Framework Backend:** Laravel 13 (Arquitectura Limpia y Patrón Repositorio / Inversión de Dependencias).
-- **Lenguaje:** PHP 8.5 (con extensión nativa `mongodb` 2.5.5 y `bcmath` para cálculos de precisión monetaria).
+- **Lenguaje:** PHP 8.2 / 8.5 (con extensión nativa C `mongodb` y `bcmath` para cálculos de precisión monetaria Decimal128).
 - **Base de Datos NoSQL de Dominio:** MongoDB 8.0 (colecciones de usuarios, productores, categorías, productos, pedidos, pagos, entregas y auditoría).
 - **Driver / ODM NoSQL:** Paquete oficial `mongodb/laravel-mongodb` v5.12.
-- **Base de Datos Relacional Auxiliar:** MySQL 8.4 (utilizado para sesiones y caché de Laravel).
 - **Frontend & UI/UX:** Blade Templates + **Tailwind CSS v4** (diseño optimizado para dispositivos móviles, fuentes nativas del sistema, microinteracciones y estándares WCAG 2.1 AA).
-- **Contenerización:** Docker & Docker Compose (Laravel Sail).
+- **Contenerización y Despliegue:** Docker, Docker Compose (Laravel Sail), Dockerfile Multi-Stage de producción y configuración para Netlify Edge / Railway / Render.
 
 ---
 
@@ -23,7 +22,7 @@ Plataforma web desarrollada con **Laravel 13**, **PHP 8.5** y **MongoDB**, orien
 
 ---
 
-## 🚀 Guía de Instalación y Puesta en Marcha
+## 🚀 Opción A: Ejecución Local con Docker (Laravel Sail)
 
 ### 1. Clonar el Repositorio
 ```bash
@@ -37,22 +36,10 @@ Copia el archivo de ejemplo:
 cp .env.example .env
 ```
 
-Genera contraseñas seguras para MongoDB o utiliza las sugeridas en `.env`:
-```env
-# MongoDB (dominio PEPEPS)
-MONGO_ROOT_PASSWORD=secret_mongo_root
-MONGO_APP_USER=pepeps_app
-MONGO_APP_PASSWORD=secret_pepeps_pass
-MONGODB_DATABASE=pepeps
-MONGODB_URI=mongodb://pepeps_app:secret_pepeps_pass@mongo:27017/pepeps?authSource=pepeps
-```
-
 ### 3. Iniciar los Contenedores con Laravel Sail
-Inicia los servicios en segundo plano:
 ```bash
 ./vendor/bin/sail up -d
 ```
-*(Si no tienes `./vendor/bin/sail` aún, puedes ejecutar `docker compose up -d`)*.
 
 ### 4. Generar la Clave de Aplicación y Migraciones Auxiliares
 ```bash
@@ -79,6 +66,69 @@ Los datos de prueba del script vienen con hashes de marcador (`hash_admin_001...
 ```
 
 ¡Listo! Abre en tu navegador web: **[http://localhost](http://localhost)** o **[http://localhost/catalogo](http://localhost/catalogo)**.
+
+---
+
+## ☁️ Opción B: Conexión con MongoDB en la Nube (MongoDB Atlas)
+
+Para conectar la aplicación a un cluster de MongoDB en la nube:
+
+### 1. Crear Cluster Gratuito en MongoDB Atlas
+1. Ingresa a [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) y crea una cuenta gratuita.
+2. Crea una base de datos gratuita (**M0 Free Tier**).
+3. En **Security > Database Access**, crea un usuario (ejemplo: `pepeps_user`) con rol `readWriteAnyDatabase` o acceso a la base de datos `pepeps`.
+4. En **Security > Network Access**, agrega la IP `0.0.0.0/0` (permitir acceso desde cualquier lugar, necesario para plataformas de nube como Railway o Render).
+
+### 2. Configurar la Cadena de Conexión en `.env`
+En tu archivo `.env`, reemplaza la configuración de MongoDB con la URI de Atlas:
+```env
+MONGODB_DATABASE=pepeps
+MONGODB_URI="mongodb+srv://pepeps_user:TU_PASSWORD_AQUI@cluster0.xxxx.mongodb.net/pepeps?retryWrites=true&w=majority&appName=pepeps"
+```
+
+### 3. Cargar el Dataset Oficial en MongoDB Atlas
+Ejecuta el script oficial directamente contra tu cluster en la nube usando `mongosh`:
+```bash
+mongosh "mongodb+srv://cluster0.xxxx.mongodb.net/pepeps" --username pepeps_user < database/mongo/SCRIPT_PROYECTO_PEPEPS.js
+```
+
+Luego, activa las contraseñas de los usuarios de prueba:
+```bash
+php artisan db:seed --class=UsuariosPasswordSeeder --force
+```
+
+---
+
+## 🌐 Opción C: Despliegue en Producción Cloud (Railway / Render + Netlify)
+
+> [!NOTE]
+> **Arquitectura Cloud para Laravel + MongoDB:**
+> Laravel es una aplicación dinámica PHP que requiere la extensión binaria nativa C de MongoDB (`mongodb.so`). Netlify es una plataforma CDN/Edge orientada a Jamstack estático. La solución estándar en la industria consiste en desplegar el backend contenerizado en una plataforma con soporte Docker (como **Railway** o **Render**) y, si se requiere un dominio Netlify, utilizar **Netlify como Reverse Proxy / CDN** mediante el archivo `netlify.toml` incluido en el repositorio.
+
+### Paso 1: Desplegar el Contenedor en Railway o Render
+1. Crea una cuenta gratuita en [Railway.app](https://railway.app) o [Render.com](https://render.com).
+2. Selecciona **New Project > Deploy from GitHub repo** y elige `MrArkano/Andres`.
+3. La plataforma detectará automáticamente el archivo `Dockerfile` multi-stage incluido en la raíz.
+4. En la pestaña de variables de entorno (**Variables**), configura:
+   ```env
+   APP_ENV=production
+   APP_DEBUG=false
+   APP_KEY=base64:TU_APP_KEY_AQUI
+   APP_URL=https://tu-proyecto.up.railway.app
+   MONGODB_URI=mongodb+srv://pepeps_user:PASSWORD@cluster0.xxxx.mongodb.net/pepeps?retryWrites=true&w=majority
+   MONGODB_DATABASE=pepeps
+   SESSION_DRIVER=file
+   CACHE_STORE=file
+   SESSION_SECURE_COOKIE=true
+   ```
+5. ¡Tu backend Laravel + MongoDB estará en línea con HTTPS automático!
+
+### Paso 2: Conectar con Netlify (Reverse Proxy)
+Si deseas que tu proyecto se sirva a través de una URL de Netlify (`*.netlify.app`):
+1. Abre el archivo `netlify.toml` en este repositorio.
+2. Reemplaza la URL `https://TU-BACKEND-EN-RAILWAY.up.railway.app/:splat` por la URL generada por Railway o Render.
+3. En [Netlify](https://www.netlify.com), haz clic en **Add new site > Import an existing project**, conecta el repositorio `MrArkano/Andres` y haz clic en **Deploy**.
+4. Netlify recibirá las solicitudes en sus servidores perimetrales y las enviará de forma transparente y con SSL a tu aplicación Laravel.
 
 ---
 
@@ -161,7 +211,7 @@ app/
 
 ---
 
-## 📄 Licencia y Autores
+## 📄 Autores
 
 Proyecto desarrollado para la cátedra de **Base de Datos II (NoSQL)**:
 - **Helbert Mauricio Quesada López** (U00189606) - Administrador del Proyecto

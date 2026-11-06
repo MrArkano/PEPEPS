@@ -1,0 +1,26 @@
+# =============================================================================
+# PEPEPS - Plataforma Digital de Mercados Campesinos de Santander
+# Configuración para Netlify (Reverse Proxy / CDN Edge)
+# =============================================================================
+# Debido a que Laravel requiere un entorno de ejecución PHP 8.2+ con la extensión
+# binaria nativa C de MongoDB (mongodb.so) y persistencia de sesiones/transacciones,
+# Netlify actúa como CDN / Reverse Proxy enmascarado hacia el contenedor de backend en la nube
+# (desplegado en Railway, Render, Fly.io o VPS).
+
+[build]
+  publish = "public"
+
+# Enmascaramiento y redirección transparente de rutas web y endpoints
+# Reemplaza la URL destino con tu dominio de backend desplegado (ej. Railway o Render)
+[[redirects]]
+  from = "/*"
+  to = "https://TU-BACKEND-EN-RAILWAY.up.railway.app/:splat"
+  status = 200
+  force = true
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
