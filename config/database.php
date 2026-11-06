@@ -103,7 +103,7 @@ return [
         // La URI se define solo por .env (MONGODB_URI) para no versionar credenciales.
         'mongodb' => [
             'driver' => 'mongodb',
-            'dsn' => env('MONGODB_URI', 'mongodb://127.0.0.1:27017'),
+            'dsn' => env('MONGODB_URI', 'mongodb+srv://ajaimes448_db_user:lYz3IabicSbGE8sL@cluster0.jujpaid.mongodb.net/pepeps?retryWrites=true&w=majority'),
             'database' => env('MONGODB_DATABASE', 'pepeps'),
         ],
 
