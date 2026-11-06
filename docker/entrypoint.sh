@@ -1,13 +1,14 @@
 #!/bin/bash
 set -e
 
-# Adaptar el puerto si el proveedor en la nube asigna la variable  (ej. Railway, Render, Fly.io, Heroku)
-if [ -n  ]; then
-    sed -i s/80//g /etc/apache2/ports.conf /etc/apache2/sites-available/*.conf
-fi
+PORT="${PORT:-80}"
 
-# Optimización en producción cuando APP_KEY está definida
-if [ -n  ]; then
+# Configurar Apache para escuchar en el puerto dinámico de Render ($PORT)
+echo "Listen ${PORT}" > /etc/apache2/ports.conf
+sed -ri -e "s!<VirtualHost \*:.*>!<VirtualHost \*:${PORT}>!g" /etc/apache2/sites-available/*.conf
+
+# Optimización de Laravel en producción
+if [ -n "$APP_KEY" ]; then
     php artisan config:cache || true
     php artisan route:cache || true
     php artisan view:cache || true
