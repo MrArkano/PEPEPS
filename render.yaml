@@ -18,11 +18,17 @@ services:
       - key: APP_DEBUG
         value: "false"
       - key: APP_KEY
-        generateValue: true
+        value: "base64:hO6JeH6xvLB+YyZnjLMtl9waMYndzOp3Qtkcny6ciuo="
       - key: APP_URL
         value: https://pepeps-santander.onrender.com
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: DB_CONNECTION
+        value: mongodb
       - key: MONGODB_DATABASE
         value: pepeps
+      - key: MONGODB_URI
+        value: "mongodb+srv://ajaimes448_db_user:lYz3IabicSbGE8sL@cluster0.jujpaid.mongodb.net/pepeps?retryWrites=true&w=majority"
       - key: SESSION_DRIVER
         value: file
       - key: CACHE_STORE
@@ -35,6 +41,3 @@ services:
         value: lax
       - key: AUTH_MODEL
         value: App\Models\Usuario
-      # Esta variable la ingresas con la URI que te entrega MongoDB Atlas:
-      - key: MONGODB_URI
-        sync: false
