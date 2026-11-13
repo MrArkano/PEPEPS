@@ -15,7 +15,7 @@ use App\Repositories\Contracts\ProductorRepositorio;
 
 final class CatalogoService
 {
-    private const POR_PAGINA = 12;
+    private const POR_PAGINA = 24;
 
     public function __construct(
         private readonly ProductoRepositorio $productos,

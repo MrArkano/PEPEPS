@@ -14,8 +14,13 @@ mkdir -p /var/www/html/storage/framework/sessions \
 echo "Listen ${PORT}" > /etc/apache2/ports.conf
 sed -ri -e "s!<VirtualHost \*:.*>!<VirtualHost \*:${PORT}>!g" /etc/apache2/sites-available/*.conf
 
-# Suprimir advertencia de ServerName en Apache
+# Suprimir advertencia de ServerName y mitigar fuga de información (ISO 27002 A.8.12)
 echo "ServerName localhost" >> /etc/apache2/apache2.conf
+echo "ServerTokens Prod" >> /etc/apache2/apache2.conf
+echo "ServerSignature Off" >> /etc/apache2/apache2.conf
+
+# Configurar hardening en PHP para ocultar versiones
+echo "expose_php = Off" > /usr/local/etc/php/conf.d/security.ini
 
 # Optimización de Laravel en producción (sin config:cache para reflejar variables y debug)
 if [ -n "$APP_KEY" ]; then
