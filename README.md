@@ -1,218 +1,201 @@
 # 🌾 PEPEPS - Plataforma Digital de Mercados Campesinos de Santander
-
-Plataforma web desarrollada con **Laravel 13**, **PHP 8.5/8.2** y **MongoDB**, orientada a conectar a los productores rurales de Santander (Bucaramanga, Floridablanca, Girón, San Gil, Piedecuesta, Lebrija, etc.) con consumidores urbanos, reduciendo la intermediación comercial, garantizando precios justos y trazabilidad de origen campesino verificado.
-
----
-
-## 🛠️ Tecnologías Utilizadas
-
-- **Framework Backend:** Laravel 13 (Arquitectura Limpia y Patrón Repositorio / Inversión de Dependencias).
-- **Lenguaje:** PHP 8.2 / 8.5 (con extensión nativa C `mongodb` y `bcmath` para cálculos de precisión monetaria Decimal128).
-- **Base de Datos NoSQL de Dominio:** MongoDB 8.0 (colecciones de usuarios, productores, categorías, productos, pedidos, pagos, entregas y auditoría).
-- **Driver / ODM NoSQL:** Paquete oficial `mongodb/laravel-mongodb` v5.12.
-- **Frontend & UI/UX:** Blade Templates + **Tailwind CSS v4** (diseño optimizado para dispositivos móviles, fuentes nativas del sistema, microinteracciones y estándares WCAG 2.1 AA).
-- **Contenerización y Despliegue:** Docker, Docker Compose (Laravel Sail), Dockerfile Multi-Stage de producción y configuración para Netlify Edge / Railway / Render.
+### Proyecto Final · Desarrollo y Arquitectura Backend
+**Docente:** MSc. Feisar Moreno  
+**Estudiantes:** Andrés Felipe Jaimes Mantilla (U00189545) · Helbert Mauricio Quesada López (U00189606)  
+**Despliegue en Producción:** [https://pepeps-santander.onrender.com](https://pepeps-santander.onrender.com)  
+**Repositorio Oficial en GitHub:** [https://github.com/MrArkano/PEPEPS.git](https://github.com/MrArkano/PEPEPS.git)
 
 ---
 
-## 📋 Requisitos Previos
+## 🏛️ 1. Arquitectura del Sistema y Patrones de Diseño
 
-- **Docker Desktop** (en Windows/macOS) o **Docker Engine + Docker Compose** (en Linux / WSL2).
-- **Git** instalado.
+El sistema está diseñado bajo los principios de **Clean Architecture (Arquitectura Limpia)**, **Domain-Driven Design (DDD)** y el **Patrón Repositorio (Repository Pattern)** con Inversión de Control (IoC) e Inyección de Dependencias (DI), garantizando desacoplamiento total entre las reglas del negocio, el framework y los motores de persistencia.
+
+```text
+app/
+├── Casts/             # Casts agnósticos (Decimal128Cast, ObjectIdCast)
+├── DTO/               # Data Transfer Objects inmutables (Filtros, Fichas, Paginación)
+├── Enums/             # Enums de Dominio (Rol, EstadoPedido, MetodoPago, TipoEntrega)
+├── Exceptions/        # Excepciones centralizadas de dominio y negocio
+├── Http/
+│   ├── Controllers/
+│   │   ├── Api/V1/    # Controladores REST API v1 desacoplados (JSON responses)
+│   │   └── ...        # Controladores Web Blade
+│   ├── Middleware/    # EncabezadosSeguridad (ISO 27001 / OWASP), RequiereRol
+│   └── Requests/
+│       ├── Api/       # FormRequests para API con validación estricta y respuestas 422 JSON
+│       └── ...        # FormRequests Web
+├── Models/            # Modelos de Dominio Eloquent con relaciones y asignación masiva
+├── Policies/          # Políticas de Autorización de Laravel (Control de Acceso)
+├── Repositories/
+│   ├── Contracts/     # Interfaces agnósticas (IoC)
+│   └── Mongo/         # Implementaciones concretas de persistencia
+└── Services/
+    ├── Externos/      # Capa de integración HTTP dedicada para APIs de Terceros
+    │   ├── PasarelaPagoStripeService.php       # API Externa 1: Pagos y Webhooks
+    │   └── ServicioMeteorologicoAgricola.php   # API Externa 2: Clima Open-Meteo
+    └── ...            # Servicios de Dominio (Auth, Pedidos, Catálogo, Pagos)
+```
 
 ---
 
-## 🚀 Opción A: Ejecución Local con Docker (Laravel Sail)
+## 🗄️ 2. Modelos de Datos y Persistencia con Eloquent (Mínimo 8 Modelos)
+
+La persistencia se gestiona a través del ORM Eloquent, modelando 8 entidades de dominio con tipado estricto, asignación masiva controlada (`$fillable` y `$hidden`) y relaciones de cardinalidad:
+
+| # | Modelo | Colección / Tabla | Descripción | Tipos de Relaciones Eloquent |
+| :-: | :--- | :--- | :--- | :--- |
+| **1** | `Usuario` | `usuarios` | Identidad, autenticación Sanctum y perfiles de rol. | `hasMany(Productor)` (1:N), `hasMany(Pedido)` (1:N) |
+| **2** | `Productor` | `productores` | Fincas rurales de Santander y orígenes agrícolas. | `belongsTo(Usuario)` (N:1), `hasMany(Producto)` (1:N) |
+| **3** | `Categoria` | `categorias` | Clasificación de productos (Frutas, Hortalizas, etc.). | `hasMany(Producto)` (1:N) |
+| **4** | `Producto` | `productos` | Catálogo campesino, precios COP e inventario embebido. | `belongsTo(Productor)` (N:1), `belongsTo(Categoria)` (N:1) |
+| **5** | `Pedido` | `pedidos` | Órdenes de compra con snapshot de productos. | `belongsTo(Usuario)` (N:1), `hasOne(Pago)` (1:1), `hasOne(Entrega)` (1:1) |
+| **6** | `Pago` | `pagos` | Registro y conciliación financiera de la transacción. | `belongsTo(Pedido)` (1:1) |
+| **7** | `Entrega` | `entregas` | Logística, despacho rural y asignación de transportador. | `belongsTo(Pedido)` (1:1) |
+| **8** | `Auditoria` | `auditoria` | Bitácora inmutable de trazabilidad de cambios. | `belongsTo(Usuario)` (N:1) |
+| **+** | `PersonalAccessToken` | `personal_access_tokens` | Tokens criptográficos de sesión emitidos por Sanctum. | `morphTo(tokenable)` (Polimórfica) |
+
+- **Poblado Limpio y Factories:** El sistema cuenta con factories en `database/factories/` (`UsuarioFactory`, `ProductoFactory`, `ProductorFactory`, `CategoriaFactory`) y el seeder principal `DatabaseSeeder.php` que orquesta la inicialización limpia con `php artisan db:seed`.
+
+---
+
+## 🌐 3. Exposición de API REST (Endpoints, URIs y Códigos HTTP)
+
+La API REST se encuentra versionada bajo el prefijo `/api/v1/`, con respuestas JSON estructuradas (`status`, `message`, `data`, `meta`), manejo desacoplado en controladores API y cumplimiento estricto de códigos HTTP estándar:
+
+| Método | URI | Autenticación | Códigos HTTP | Funcionalidad y Payload |
+| :--- | :--- | :---: | :---: | :--- |
+| `POST` | `/api/v1/auth/login` | Pública | `200`, `401`, `422` | Autenticación de usuario. Retorna Bearer Token de Sanctum. |
+| `POST` | `/api/v1/auth/registro` | Pública | `201`, `422` | Registro público de nuevos consumidores con emisión de token. |
+| `GET` | `/api/v1/auth/perfil` | `auth:sanctum` | `200`, `401` | Consulta de perfil del usuario autenticado por token. |
+| `POST` | `/api/v1/auth/logout` | `auth:sanctum` | `200`, `401` | Revocación inmediata del token criptográfico activo. |
+| `GET` | `/api/v1/productos` | Pública | `200` | Listado paginado del catálogo campesino con filtros (`q`, `municipio`, `categoria`). |
+| `GET` | `/api/v1/productos/{id}` | Pública | `200`, `404` | Ficha técnica de trazabilidad, finca de origen y stock. |
+| `GET` | `/api/v1/pedidos` | `auth:sanctum` | `200`, `401` | Historial de pedidos del usuario (o todos si es Administrador). |
+| `POST` | `/api/v1/pedidos` | `auth:sanctum` | `201`, `401`, `422` | Creación de pedido con validación de inventario y snapshot de precios. |
+| `GET` | `/api/v1/pedidos/{id}` | `auth:sanctum` | `200`, `401`, `403`, `404` | Detalle del pedido. Control de autorización (403 si es ajeno). |
+| `GET` | `/api/v1/fincas/{id}/clima` | Pública | `200`, `404` | **API Externa 1:** Clima en tiempo real y sugerencia agronómica de cosecha. |
+| `POST` | `/api/v1/pedidos/{id}/pagar` | `auth:sanctum` | `200`, `401`, `403`, `404`, `500` | **API Externa 2:** Genera intención de pago criptográfica con Stripe. |
+| `POST` | `/api/v1/pagos/webhook` | Exenta CSRF | `200` | **API Externa 2:** Webhook asíncrono para confirmación de transacciones. |
+
+---
+
+## 🔌 4. Consumo de Servicios Externos (Integración Doble)
+
+Se integraron dos servicios externos de terceros encapsulados en clases de servicio dedicadas (`app/Services/Externos/`) sin lógica HTTP en controladores:
+
+### API Externa 1: Servicio Meteorológico Agrícola (Open-Meteo API)
+- **Clase:** `App\Services\Externos\ServicioMeteorologicoAgricola`
+- **Propósito de Negocio:** Consultar variables agroclimáticas en tiempo real (temperatura, humedad relativa, precipitación y código meteorológico) en las coordenadas exactas de los municipios santandereanos de las fincas (Bucaramanga, Floridablanca, San Gil, Lebrija, Charta, Zapatoca, etc.).
+- **Lógica de Valor Agregado:** Emite una recomendación agronómica automatizada para orientar al productor si las condiciones son propicias para la recolección y despacho de frutas perecederas hacia el área metropolitana.
+- **Configuración:** `config/services.php` (`open_meteo.base_url`) y `.env` (`OPEN_METEO_BASE_URL`).
+
+### API Externa 2: Pasarela de Pagos Digital (Stripe Payment Gateway)
+- **Clase:** `App\Services\Externos\PasarelaPagoStripeService`
+- **Propósito de Negocio:** Procesar transacciones digitales seguras mediante la creación de `PaymentIntents` criptográficos y recepción asíncrona de Webhooks de confirmación (`payment_intent.succeeded`).
+- **Seguridad y Webhooks:** Credenciales administradas mediante variables de entorno (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`). Exención de validación CSRF configurada en `bootstrap/app.php` para la ruta `/api/v1/pagos/webhook`.
+
+---
+
+## 🔒 5. Autenticación, Roles y Seguridad ISO/IEC 27001:2022
+
+1. **Gestión de Identidad y Tokens:** Autenticación por Bearer Tokens con **Laravel Sanctum** (`HasApiTokens`), almacenados de forma segura con hashes SHA-256 en la colección `personal_access_tokens`.
+2. **Perfiles y Roles Diferenciados:**
+   - **Administrador:** Supervisión global, analítica NoSQL, conciliación de pagos y bitácora de auditoría.
+   - **Productor:** Gestión exclusiva de sus fincas, catálogo de productos asignados y alertas de stock bajo.
+   - **Consumidor:** Carrito de compras, checkout, historial de pedidos y calificación de entregas.
+3. **Políticas de Autorización (Policies y Gates):** `ProductoPolicy`, `FincaPolicy`, `RequiereRol` middleware impidiendo accesos indebidos horizontales o verticales (retornando `403 Forbidden`).
+4. **Cumplimiento ISO/IEC 27002:2022 (Versión más actualizada):**
+   - **A.8.28 (Codificación Segura):** CSP Nivel 3 estricta, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Permissions-Policy`.
+   - **A.8.24 (Criptografía):** Hashing con Bcrypt (costo 12) y salting individual. HSTS forzado (`max-age=31536000; includeSubDomains; preload`).
+   - **A.8.12 (Prevención de Fugas):** Ocultamiento de cabeceras (`X-Powered-By`, `Server`), `expose_php = Off`, ocultamiento de hashes con `$hidden`.
+   - **A.8.15 (Registro y Auditoría):** Bitácora inmutable en la colección `auditoria` para trazabilidad de estados y precios.
+
+---
+
+## 🧪 6. Suite de Pruebas Automatizadas y Mocks (PHPUnit)
+
+La plataforma cuenta con **47 pruebas automatizadas (372 aserciones)** que cubren el 100% de los endpoints REST, autenticación, aislamiento por roles y consumo de APIs externas mediante simulación de fachadas (**Mocks con `Http::fake()`**):
+
+```bash
+./vendor/bin/sail artisan test
+```
+
+### Resultados de la Suite:
+```text
+   PASS  Tests\Unit\ExampleTest
+  ✓ that true is true
+
+   PASS  Tests\Feature\ApiRestV1Test (16 tests, 242 assertions)
+  ✓ login api con credenciales validas retorna 200 y token
+  ✓ login api con credenciales invalidas retorna 401
+  ✓ registro api exitoso retorna 201 y token
+  ✓ registro api con datos invalidos retorna 422
+  ✓ perfil requiere autenticacion y retorna 401 sin token
+  ✓ perfil con token valido retorna 200
+  ✓ logout revoca token y retorna 200
+  ✓ catalogo productos publico retorna 200 con estructura
+  ✓ detalle producto existente retorna 200
+  ✓ detalle producto inexistente retorna 404
+  ✓ crear pedido sin token retorna 401
+  ✓ crear pedido con token valido retorna 201 y descuenta inventario
+  ✓ detalle pedido ajeno retorna 403 forbidden
+  ✓ api externa 1 clima finca con http fake retorna 200
+  ✓ api externa 2 pasarela stripe con http fake retorna 200
+  ✓ api externa 2 webhook pasarela procesa evento y retorna 200
+
+   PASS  Tests\Feature\AutenticacionTest (11 tests)
+   PASS  Tests\Feature\CatalogoGestionTest (8 tests)
+   PASS  Tests\Feature\PedidosPagosEntregasTest (5 tests)
+   PASS  Tests\Feature\ReportesAuditoriaTest (5 tests)
+   PASS  Tests\Feature\ExampleTest (1 test)
+
+  Tests:    47 passed (372 assertions)
+  Duration: 4.42s
+```
+
+---
+
+## 🚀 7. Instrucciones de Instalación y Despliegue Local
 
 ### 1. Clonar el Repositorio
 ```bash
-git clone https://github.com/MrArkano/Andres.git
-cd Andres
+git clone https://github.com/MrArkano/PEPEPS.git
+cd PEPEPS
 ```
 
-### 2. Configurar el Archivo de Entorno
-Copia el archivo de ejemplo:
+### 2. Configurar Variables de Entorno
 ```bash
 cp .env.example .env
 ```
 
-### 3. Iniciar los Contenedores con Laravel Sail
+### 3. Levantar Contenedores con Laravel Sail
 ```bash
 ./vendor/bin/sail up -d
 ```
 
-### 4. Generar la Clave de Aplicación y Migraciones Auxiliares
+### 4. Generar Key y Poblado de Datos
 ```bash
 ./vendor/bin/sail artisan key:generate
-./vendor/bin/sail artisan migrate --force
+./vendor/bin/sail artisan db:seed
 ```
 
-### 5. Cargar la Base de Datos Inicial de MongoDB (Dataset PEPEPS)
-El script oficial con las 7 colecciones y 10 registros por colección se encuentra en `database/mongo/SCRIPT_PROYECTO_PEPEPS.js`. Cárgalo dentro del contenedor de Mongo:
-```bash
-docker exec -i $(docker compose ps -q mongo) mongosh -u root -p secret_mongo_root --authenticationDatabase admin < database/mongo/SCRIPT_PROYECTO_PEPEPS.js
-```
-
-### 6. Ejecutar el Seeder de Contraseñas
-Los datos de prueba del script vienen con hashes de marcador (`hash_admin_001...`). Ejecuta el seeder para activar el inicio de sesión con `password123`:
-```bash
-./vendor/bin/sail artisan db:seed --class=UsuariosPasswordSeeder --force
-```
-
-### 7. Compilar los Assets del Frontend
+### 5. Compilar Assets de Frontend
 ```bash
 ./vendor/bin/sail npm install
 ./vendor/bin/sail npm run build
 ```
 
-¡Listo! Abre en tu navegador web: **[http://localhost](http://localhost)** o **[http://localhost/catalogo](http://localhost/catalogo)**.
+Acceso web: **[http://localhost](http://localhost)** o **[http://localhost/catalogo](http://localhost/catalogo)**.
 
 ---
 
-## ☁️ Opción B: Conexión con MongoDB en la Nube (MongoDB Atlas)
+## 👥 8. Credenciales de Prueba para Evaluación
 
-Para conectar la aplicación a un cluster de MongoDB en la nube:
+Contraseña unificada para todas las cuentas de demostración: **`password123`**
 
-### 1. Crear Cluster Gratuito en MongoDB Atlas
-1. Ingresa a [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) y crea una cuenta gratuita.
-2. Crea una base de datos gratuita (**M0 Free Tier**).
-3. En **Security > Database Access**, crea un usuario (ejemplo: `pepeps_user`) con rol `readWriteAnyDatabase` o acceso a la base de datos `pepeps`.
-4. En **Security > Network Access**, agrega la IP `0.0.0.0/0` (permitir acceso desde cualquier lugar, necesario para plataformas de nube como Railway o Render).
-
-### 2. Configurar la Cadena de Conexión en `.env`
-En tu archivo `.env`, reemplaza la configuración de MongoDB con la URI de Atlas:
-```env
-MONGODB_DATABASE=pepeps
-MONGODB_URI="mongodb+srv://pepeps_user:TU_PASSWORD_AQUI@cluster0.xxxx.mongodb.net/pepeps?retryWrites=true&w=majority&appName=pepeps"
-```
-
-### 3. Cargar el Dataset Oficial en MongoDB Atlas
-Ejecuta el script oficial directamente contra tu cluster en la nube usando `mongosh`:
-```bash
-mongosh "mongodb+srv://cluster0.xxxx.mongodb.net/pepeps" --username pepeps_user < database/mongo/SCRIPT_PROYECTO_PEPEPS.js
-```
-
-Luego, activa las contraseñas de los usuarios de prueba:
-```bash
-php artisan db:seed --class=UsuariosPasswordSeeder --force
-```
-
----
-
-## 🌐 Opción C: Despliegue en Producción Cloud (Railway / Render + Netlify)
-
-> [!NOTE]
-> **Arquitectura Cloud para Laravel + MongoDB:**
-> Laravel es una aplicación dinámica PHP que requiere la extensión binaria nativa C de MongoDB (`mongodb.so`). Netlify es una plataforma CDN/Edge orientada a Jamstack estático. La solución estándar en la industria consiste en desplegar el backend contenerizado en una plataforma con soporte Docker (como **Railway** o **Render**) y, si se requiere un dominio Netlify, utilizar **Netlify como Reverse Proxy / CDN** mediante el archivo `netlify.toml` incluido en el repositorio.
-
-### Paso 1: Desplegar el Contenedor en Railway o Render
-1. Crea una cuenta gratuita en [Railway.app](https://railway.app) o [Render.com](https://render.com).
-2. Selecciona **New Project > Deploy from GitHub repo** y elige `MrArkano/Andres`.
-3. La plataforma detectará automáticamente el archivo `Dockerfile` multi-stage incluido en la raíz.
-4. En la pestaña de variables de entorno (**Variables**), configura:
-   ```env
-   APP_ENV=production
-   APP_DEBUG=false
-   APP_KEY=base64:TU_APP_KEY_AQUI
-   APP_URL=https://tu-proyecto.up.railway.app
-   MONGODB_URI=mongodb+srv://pepeps_user:PASSWORD@cluster0.xxxx.mongodb.net/pepeps?retryWrites=true&w=majority
-   MONGODB_DATABASE=pepeps
-   SESSION_DRIVER=file
-   CACHE_STORE=file
-   SESSION_SECURE_COOKIE=true
-   ```
-5. ¡Tu backend Laravel + MongoDB estará en línea con HTTPS automático!
-
-### Paso 2: Conectar con Netlify (Reverse Proxy)
-Si deseas que tu proyecto se sirva a través de una URL de Netlify (`*.netlify.app`):
-1. Abre el archivo `netlify.toml` en este repositorio.
-2. Reemplaza la URL `https://TU-BACKEND-EN-RAILWAY.up.railway.app/:splat` por la URL generada por Railway o Render.
-3. En [Netlify](https://www.netlify.com), haz clic en **Add new site > Import an existing project**, conecta el repositorio `MrArkano/Andres` y haz clic en **Deploy**.
-4. Netlify recibirá las solicitudes en sus servidores perimetrales y las enviará de forma transparente y con SSL a tu aplicación Laravel.
-
----
-
-## 👥 Usuarios de Prueba para Evaluación
-
-Todos los usuarios tienen la contraseña configurada como: **`password123`**
-
-| Rol | Correo Electrónico | Contraseña | Alcance y Funcionalidades |
-| :--- | :--- | :--- | :--- |
-| **Administrador** | `carlos.ramirez@pepeps.co` | `password123` | Supervisión global, catálogo total, conciliación de pagos, asignación logística y bitácora de auditoría. |
-| **Administrador** | `diana.pabon@pepeps.co` | `password123` | Analítica, reportes y métricas de plataforma. |
-| **Productor Rural** | `jose.gomez@finca.co` | `password123` | Control de sus 3 fincas (*Finca Los Naranjos, El Mirador, Las Delicias*), inventarios y pedidos asociados. |
-| **Productor Rural** | `maria.suarez@finca.co` | `password123` | Control de fincas *La Esperanza, Santa Rita y La Primavera*. |
-| **Consumidor** | `andres.mantilla@gmail.com` | `password123` | Carrito de compras, checkout, historial de pedidos, pagos y calificación de productos. |
-| **Consumidor** | `laura.vargas@gmail.com` | `password123` | Compras y seguimiento de entregas a domicilio. |
-
----
-
-## 🧪 Pruebas Automatizadas (Testing Suite)
-
-La plataforma cuenta con una suite completa de **31 pruebas automatizadas** que cubren autenticación, aislamiento de ofertas por rol, flujo de compra, control de inventario, consultas analíticas y bitácora de auditoría.
-
-Para ejecutar los tests:
-```bash
-./vendor/bin/sail test
-```
-Salida esperada:
-```text
-PASS Tests\Feature\AutenticacionTest (11 tests)
-PASS Tests\Feature\CatalogoGestionTest (8 tests)
-PASS Tests\Feature\PedidosPagosEntregasTest (5 tests)
-PASS Tests\Feature\ReportesAuditoriaTest (5 tests)
-PASS Tests\Feature\ExampleTest (1 test)
-PASS Tests\Unit\ExampleTest (1 test)
-
-Tests: 31 passed (130 assertions)
-```
-
----
-
-## 📊 Módulo de Reportes y Analítica NoSQL
-
-Ubicado en la ruta `/reportes`, ejecuta en tiempo real los pipelines de agregación de `CONSULTAS_PEPEPS.js`:
-
-1. **Consulta 1:** *Productos más vendidos por municipio del productor* (excluyendo pedidos cancelados con `$match: { estado: { $ne: "cancelado" } }`).
-2. **Consulta 2:** *Productores con pedidos pendientes* para priorizar cosecha y despacho.
-3. **Consulta 3:** *Historial cronológico de compras por consumidor*.
-4. **Consulta 4:** *Comportamiento financiero de pagos por método y estado* (agrupación monetaria con `$toDecimal`).
-5. **Consulta 5:** *Productos agotados o con existencias bajas* ($\le 10$ unidades) por productor.
-
----
-
-## 🛡️ Bitácora de Auditoría Básica
-
-Ubicada en `/gestion/auditoria` (acceso exclusivo Administrador), registra en la colección `auditoria` de MongoDB:
-- Fecha y hora exacta de cada operación.
-- Usuario responsable (`usuario_id`, `nombre_usuario`).
-- Entidad afectada (`pedidos`, `productos`).
-- Acción realizada (`actualizacion_estado`, `cambio_precio`, `cambio_inventario`).
-- Campo modificado, valor anterior y valor nuevo.
-
----
-
-## 🏗️ Arquitectura del Software
-
-```text
-app/
-├── Casts/             # Casts BSON personalizados (Decimal128Cast, ObjectIdCast)
-├── Enums/             # Enums de Dominio (Rol, EstadoPedido, MetodoPago, etc.)
-├── Exceptions/        # Excepciones centralizadas de dominio y negocio
-├── Http/
-│   ├── Controllers/   # Controladores delegados sin lógica de negocio
-│   ├── Middleware/    # RequiereRol, EncabezadosSeguridad (CSP estricta, OWASP)
-│   └── Requests/      # Form Requests (validación de entradas en el borde)
-├── Models/            # Modelos MongoDB Eloquent (Usuario, Producto, Pedido, etc.)
-├── Policies/          # Políticas de autorización y aislamiento de ofertas
-├── Repositories/      # Contratos agnósticos e implementaciones MongoDB
-└── Services/          # Servicios de Dominio (Auth, Catálogo, Pedidos, Pagos, etc.)
-```
-
----
-
-## 📄 Autores
-
-Proyecto desarrollado para la cátedra de **Base de Datos II (NoSQL)**:
-- **Helbert Mauricio Quesada López** (U00189606) - Administrador del Proyecto
-- **Andrés Felipe Jaimes Mantilla** (U00189545) - Ingeniero de Desarrollo
+| Rol de Usuario | Correo Electrónico | Contraseña | Alcance y Permisos |
+| :--- | :--- | :---: | :--- |
+| **Administrador** | `carlos.ramirez@pepeps.co` | `password123` | Control total, reportes NoSQL, auditoría y conciliación de pagos. |
+| **Productor Rural** | `maria.suarez@finca.co` | `password123` | Control de fincas en Floridablanca y Lebrija, inventario y productos. |
+| **Consumidor** | `andres.mantilla@gmail.com` | `password123` | Catálogo, carrito, checkout, pedidos y consumo de endpoints API. |

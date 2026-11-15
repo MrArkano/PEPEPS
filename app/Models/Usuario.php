@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Builder;
-use App\Models\Concerns\TieneReferenciasObjectId;
 use App\Enums\Rol;
+use App\Models\Concerns\TieneReferenciasObjectId;
+use Illuminate\Database\Eloquent\Builder;
+use Laravel\Sanctum\HasApiTokens;
 use MongoDB\Laravel\Auth\User as Authenticatable;
 
 /**
@@ -15,6 +16,7 @@ use MongoDB\Laravel\Auth\User as Authenticatable;
  */
 class Usuario extends Authenticatable
 {
+    use HasApiTokens;
     use TieneReferenciasObjectId;
 
     protected $connection = 'mongodb';

@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\PersonalAccessToken;
 use App\Repositories\Contracts\CalificacionRepositorio;
 use App\Repositories\Contracts\CategoriaRepositorio;
 use App\Repositories\Contracts\EntregaRepositorio;
@@ -27,6 +28,7 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Sanctum\Sanctum;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -63,6 +65,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
+
         if ($this->app->environment('production') || str_contains((string) config('app.url'), 'https://') || request()->header('x-forwarded-proto') === 'https') {
             URL::forceScheme('https');
         }
